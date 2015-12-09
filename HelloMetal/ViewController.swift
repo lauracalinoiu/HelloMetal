@@ -14,17 +14,17 @@ class ViewController: UIViewController {
     
     var device: MTLDevice! = nil
     var metalLayer: CAMetalLayer! = nil
-    let vertexData: [Float] = [0,1,0,
-        -1,-1,0, 1,-1,0 ]
-    var vertexBuffer: MTLBuffer! = nil
     var pipelineState: MTLRenderPipelineState! = nil
     var commandQueue: MTLCommandQueue! = nil
-    
+    var objectToDraw: Cube! = nil
     var timer: CADisplayLink! = nil
+    
+    var projectionMatrix: Matrix4!
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
+        projectionMatrix = Matrix4.makePerspectiveViewAngle(Matrix4.degreesToRad(85), aspectRatio: Float(self.view.bounds.size.width / self.view.bounds.size.height), nearZ: 0.01, farZ: 100.0)
         device = MTLCreateSystemDefaultDevice()
         metalLayer = CAMetalLayer()
         metalLayer.device = device
@@ -33,8 +33,12 @@ class ViewController: UIViewController {
         metalLayer.frame = view.layer.frame
         view.layer.addSublayer(metalLayer)
         
-        let dataSize = vertexData.count * sizeofValue(vertexData[0])
-        vertexBuffer = device.newBufferWithBytes(vertexData, length: dataSize, options: MTLResourceOptions.CPUCacheModeDefaultCache)
+        objectToDraw = Cube(device: device)
+        objectToDraw.positionX = 0.0
+        objectToDraw.positionY =  0.0
+        objectToDraw.positionZ = -2.0
+        objectToDraw.rotationZ = Matrix4.degreesToRad(45);
+        objectToDraw.scale = 0.5
         
         let defaultLibrary = device.newDefaultLibrary()
         let fragmentProgram = defaultLibrary!.newFunctionWithName("basic_fragment")
@@ -56,24 +60,9 @@ class ViewController: UIViewController {
         timer.addToRunLoop(NSRunLoop.mainRunLoop(), forMode: NSDefaultRunLoopMode)
     }
     
-    func render(){
+    func render() {
         let drawable = metalLayer.nextDrawable()
-        let renderPassDescriptor = MTLRenderPassDescriptor()
-        renderPassDescriptor.colorAttachments[0].texture = drawable!.texture
-        renderPassDescriptor.colorAttachments[0].loadAction = .Clear
-        renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0, 104/255, 5/255, 1)
-        
-        let commandBuffer = commandQueue.commandBuffer()
-        
-        let renderEncoder = commandBuffer.renderCommandEncoderWithDescriptor(renderPassDescriptor)
-        renderEncoder.setRenderPipelineState(pipelineState)
-        renderEncoder.setVertexBuffer(vertexBuffer, offset: 0, atIndex: 0)
-        renderEncoder.drawPrimitives(.Triangle, vertexStart: 0, vertexCount: 3, instanceCount: 1)
-        renderEncoder.endEncoding()
-        
-        commandBuffer.presentDrawable(drawable!)
-        commandBuffer.commit()
-        
+        objectToDraw.render(commandQueue, pipelineState: pipelineState, drawable: drawable!,projectionMatrix: projectionMatrix, clearColor: nil)
     }
     
     func gameloop(){
